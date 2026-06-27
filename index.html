@@ -53,6 +53,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Archivo',sans-serif;over
 .leader-dial{width:min(60vmin,340px);height:min(60vmin,340px);color:#cfc6b2;opacity:.85}
 .leader-sweep{transform-origin:50% 50%;transform:rotate(0deg)}
 .leader-num{position:absolute;font-family:'Archivo',sans-serif;font-weight:900;font-size:min(34vmin,200px);color:var(--ink);text-shadow:-1px 0 rgba(255,40,90,.4),2px 0 rgba(40,220,255,.35)}
+.leader-num.vanish{opacity:0;transform:scale(.86);filter:blur(10px);transition:opacity .45s ease,transform .45s ease,filter .45s ease}
 
 /* ---- OSD (camcorder) ---- */
 .progress{position:fixed;top:0;left:0;height:2px;width:0;background:var(--accent);z-index:50;opacity:.8}
@@ -128,9 +129,14 @@ body{background:var(--bg);color:var(--ink);font-family:'Archivo',sans-serif;over
 .rewind:hover{color:var(--accent)}
 
 @media(max-width:680px){
+  .hero,.track,.outro{min-height:100dvh;height:100dvh;scroll-snap-stop:always}
+  .hero{gap:clamp(14px,2.5dvh,24px);padding:clamp(52px,8dvh,88px) 24px clamp(38px,6dvh,70px)}
+  .cover{width:min(42dvh,76vw,360px)}
+  .scrollcue{gap:9px}
+  .scrollcue i{height:34px}
   .num{font-size:42vw;right:-4vw;opacity:.6}
   .lore{font-size:22px}
-  .outro{min-height:100svh;height:100svh;scroll-snap-stop:always;padding:8svh 24px calc(7svh + env(safe-area-inset-bottom))}
+  .outro{padding:8dvh 24px calc(7dvh + env(safe-area-inset-bottom))}
   .outro-inner{max-width:min(88vw,420px)}
   .outro-title{font-size:clamp(34px,14vw,54px)}
   .outro .lore{margin-top:1rem}
@@ -311,9 +317,9 @@ setInterval(()=>{ const s=Math.floor((Date.now()-t0)/1000); tc.textContent=`0:${
 const leader = document.getElementById("leader"), lnum = document.getElementById("leaderNum"), sweep = document.querySelector(".leader-sweep");
 const LEADER_START = 3;
 const LEADER_ROTATION_MS = 900;
-const LEADER_ZERO_FADE_PROGRESS = .25;
+const LEADER_ZERO_NUMBER_FADE_MS = 460;
 const LEADER_REMOVE_MS = 750;
-let leaderFrame = 0, leaderTimer = 0, leaderDone = false, leaderFading = false;
+let leaderFrame = 0, leaderTimer = 0, leaderDone = false, leaderFading = false, zeroFinished = false;
 const removeLeader = ()=>{
   if(leaderDone) return;
   leaderDone = true;
@@ -321,26 +327,34 @@ const removeLeader = ()=>{
   clearTimeout(leaderTimer);
   leader.remove();
 };
-const end = (removeDelay = LEADER_REMOVE_MS)=>{
+const end = ()=>{
   if(leaderFading || leaderDone) return;
   leaderFading = true;
+  cancelAnimationFrame(leaderFrame);
+  clearTimeout(leaderTimer);
   leader.classList.add("done");
-  leaderTimer = setTimeout(removeLeader, removeDelay);
+  leaderTimer = setTimeout(removeLeader, LEADER_REMOVE_MS);
 };
 if(matchMedia("(prefers-reduced-motion: reduce)").matches){ end(); }
 else{
   const start = performance.now();
   const zeroStart = LEADER_START * LEADER_ROTATION_MS;
   const zeroEnd = (LEADER_START + 1) * LEADER_ROTATION_MS;
-  const fadeStart = zeroStart + LEADER_ZERO_FADE_PROGRESS * LEADER_ROTATION_MS;
   const frameLeader = now=>{
     const elapsed = Math.max(0, now - start);
     const completed = Math.min(LEADER_START + 1, Math.floor(elapsed / LEADER_ROTATION_MS));
     const remaining = Math.max(LEADER_START - completed, 0);
     if(lnum.textContent !== String(remaining)) lnum.textContent = remaining;
     if(elapsed >= zeroStart) leader.classList.add("cal");
-    if(elapsed >= fadeStart){
-      end(Math.max(0, zeroEnd - elapsed));
+    if(elapsed >= zeroEnd){
+      if(!zeroFinished){
+        zeroFinished = true;
+        leader.classList.remove("cal");
+        sweep.style.transform = "rotate(360deg)";
+        lnum.classList.add("vanish");
+        leaderTimer = setTimeout(end, LEADER_ZERO_NUMBER_FADE_MS);
+      }
+      return;
     }
     const rotation = (elapsed % LEADER_ROTATION_MS) / LEADER_ROTATION_MS * 360;
     sweep.style.transform = `rotate(${rotation.toFixed(3)}deg)`;
