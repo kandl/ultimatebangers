@@ -180,7 +180,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Archivo',sans-serif;over
   <div class="eyebrow">Freezer Beats × Peacock Beats</div>
   <div class="cover"><img id="coverimg" src="assets/cover.jpg" alt="Ultimate Bangers cover artwork"></div>
   <p class="sub">The soundtrack to a film that was never made.</p>
-  <div class="meta">Eighteen tracks · 2026</div>
+  <div class="meta">2026</div>
   <div class="scrollcue"><span>Scroll</span><i></i></div>
 </header>
 
@@ -241,7 +241,7 @@ document.getElementById("tracks").innerHTML = TRACKS.map((tr,i)=>{
   return `<section class="track" data-accent="${tr.a}" data-count="${n}" style="--accent:${tr.a}">
     <div class="num" aria-hidden="true">${n}</div>
     <div class="inner">
-      <div class="t-eyebrow reveal">Track ${n} / 18</div>
+      <div class="t-eyebrow reveal">${n} / 18</div>
       <h2 class="title reveal">${tr.t}</h2>
       <div class="rule reveal"></div>
       <p class="lore reveal">${tr.line}</p>
