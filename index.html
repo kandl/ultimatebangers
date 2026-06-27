@@ -311,7 +311,7 @@ setInterval(()=>{ const s=Math.floor((Date.now()-t0)/1000); tc.textContent=`0:${
 const leader = document.getElementById("leader"), lnum = document.getElementById("leaderNum"), sweep = document.querySelector(".leader-sweep");
 const LEADER_START = 3;
 const LEADER_ROTATION_MS = 900;
-const LEADER_ZERO_FADE_PROGRESS = .68;
+const LEADER_ZERO_FADE_PROGRESS = .25;
 const LEADER_REMOVE_MS = 750;
 let leaderFrame = 0, leaderTimer = 0, leaderDone = false, leaderFading = false;
 const removeLeader = ()=>{
@@ -321,24 +321,26 @@ const removeLeader = ()=>{
   clearTimeout(leaderTimer);
   leader.remove();
 };
-const end = ()=>{
+const end = (removeDelay = LEADER_REMOVE_MS)=>{
   if(leaderFading || leaderDone) return;
   leaderFading = true;
   leader.classList.add("done");
-  leaderTimer = setTimeout(removeLeader, LEADER_REMOVE_MS);
+  leaderTimer = setTimeout(removeLeader, removeDelay);
 };
 if(matchMedia("(prefers-reduced-motion: reduce)").matches){ end(); }
 else{
   const start = performance.now();
-  const fadeStart = (LEADER_START + LEADER_ZERO_FADE_PROGRESS) * LEADER_ROTATION_MS;
+  const zeroStart = LEADER_START * LEADER_ROTATION_MS;
+  const zeroEnd = (LEADER_START + 1) * LEADER_ROTATION_MS;
+  const fadeStart = zeroStart + LEADER_ZERO_FADE_PROGRESS * LEADER_ROTATION_MS;
   const frameLeader = now=>{
     const elapsed = Math.max(0, now - start);
     const completed = Math.min(LEADER_START + 1, Math.floor(elapsed / LEADER_ROTATION_MS));
     const remaining = Math.max(LEADER_START - completed, 0);
     if(lnum.textContent !== String(remaining)) lnum.textContent = remaining;
+    if(elapsed >= zeroStart) leader.classList.add("cal");
     if(elapsed >= fadeStart){
-      leader.classList.add("cal");
-      end();
+      end(Math.max(0, zeroEnd - elapsed));
     }
     const rotation = (elapsed % LEADER_ROTATION_MS) / LEADER_ROTATION_MS * 360;
     sweep.style.transform = `rotate(${rotation.toFixed(3)}deg)`;
