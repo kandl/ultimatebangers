@@ -14,6 +14,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--accent:#8b6fc4;--bg:#0a0806;--ink:#e9e2d0;--muted:#857f70;transition:--accent 1s ease}
 html{scroll-behavior:smooth;scroll-snap-type:y mandatory}
+html,body,.reel{overflow-anchor:none}
 body{background:var(--bg);color:var(--ink);font-family:'Archivo',sans-serif;overflow-x:hidden;-webkit-font-smoothing:antialiased}
 
 /* ---- behind content: accent glow ---- */
@@ -53,7 +54,8 @@ body{background:var(--bg);color:var(--ink);font-family:'Archivo',sans-serif;over
 .leader-dial{width:min(60vmin,340px);height:min(60vmin,340px);color:#cfc6b2;opacity:.85}
 .leader-sweep{transform-origin:50% 50%;transform:rotate(0deg)}
 .leader-num{position:absolute;font-family:'Archivo',sans-serif;font-weight:900;font-size:min(34vmin,200px);color:var(--ink);text-shadow:-1px 0 rgba(255,40,90,.4),2px 0 rgba(40,220,255,.35)}
-.leader-num.vanish{opacity:0;transform:scale(.86);filter:blur(10px);transition:opacity .45s ease,transform .45s ease,filter .45s ease}
+.leader.countdown-done .leader-dial,
+.leader.countdown-done .leader-num{opacity:0;transform:scale(.86);filter:blur(10px);transition:opacity .45s ease,transform .45s ease,filter .45s ease}
 
 /* ---- OSD (camcorder) ---- */
 .progress{position:fixed;top:0;left:0;height:2px;width:0;background:var(--accent);z-index:50;opacity:.8}
@@ -129,7 +131,11 @@ body{background:var(--bg);color:var(--ink);font-family:'Archivo',sans-serif;over
 .rewind:hover{color:var(--accent)}
 
 @media(max-width:680px){
-  .hero,.track,.outro{min-height:100dvh;height:100dvh;scroll-snap-stop:always}
+  :root{--snap-vh:100svh}
+  html{height:var(--snap-vh);overflow:hidden;overscroll-behavior:none;scroll-snap-type:none}
+  body{position:fixed;inset:0;width:100%;height:var(--snap-vh);overflow:hidden}
+  .reel{position:fixed;inset:0 0 auto 0;height:var(--snap-vh);overflow-y:auto;overscroll-behavior-y:contain;scroll-snap-type:y mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;animation:none}
+  .hero,.track,.outro{min-height:var(--snap-vh);height:var(--snap-vh);scroll-snap-stop:always}
   .hero{gap:clamp(14px,2.5dvh,24px);padding:clamp(52px,8dvh,88px) 24px clamp(38px,6dvh,70px)}
   .cover{width:min(42dvh,76vw,360px)}
   .scrollcue{gap:9px}
@@ -212,7 +218,7 @@ body{background:var(--bg);color:var(--ink);font-family:'Archivo',sans-serif;over
     <p class="lore reveal">It was a way through. You've already crossed.</p>
     <a class="album reveal" id="album-link" href="#" target="_blank" rel="noopener">Listen to the full album <span>→</span></a>
     <div class="credits reveal">Freezer Beats × Peacock Beats<br>2026</div>
-    <button class="rewind reveal" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑ Rewind</button>
+    <button class="rewind reveal" onclick="rewindTape(event)">↑ Rewind</button>
   </div>
 </footer>
 </div>
@@ -280,21 +286,104 @@ if("scrollRestoration" in history) history.scrollRestoration = "manual";
 
 const sections = [...document.querySelectorAll("[data-accent]")];
 const root = document.documentElement;
+const reel = document.querySelector(".reel");
 const progress = document.getElementById("progress");
 const count = document.getElementById("count");
 let ticking = false, lastBest = null;
+let snapViewportWidth = 0;
+let snapRestoreTimer = 0;
+
+function scrollSource(){
+  const reelScrolls = reel && getComputedStyle(reel).overflowY !== "visible";
+  return reelScrolls ? reel : window;
+}
+
+function usesMobileScroller(){
+  return matchMedia("(max-width:680px)").matches;
+}
+
+function setSnapViewportHeight(force = false){
+  if(!usesMobileScroller()){
+    root.style.removeProperty("--snap-vh");
+    snapViewportWidth = 0;
+    return;
+  }
+  if(!force && Math.abs(innerWidth - snapViewportWidth) < 1) return;
+  snapViewportWidth = innerWidth;
+  const viewportHeight = Math.round(window.visualViewport?.height || innerHeight);
+  root.style.setProperty("--snap-vh", `${viewportHeight}px`);
+}
+
+function scrollMetrics(){
+  const source = scrollSource();
+  if(source === reel){
+    return {
+      sc: reel.scrollTop,
+      max: reel.scrollHeight - reel.clientHeight,
+      vh: reel.clientHeight
+    };
+  }
+  return {
+    sc: window.scrollY,
+    max: document.body.scrollHeight - innerHeight,
+    vh: innerHeight
+  };
+}
+
+function restoreReelSnap(){
+  if(!reel) return;
+  reel.style.scrollSnapType = "";
+  reel.scrollTop = 0;
+  requestAnimationFrame(frame);
+}
+
+function restoreReelSnapAtStart(attempt = 0){
+  if(!reel) return;
+  if(reel.scrollTop <= 2 || attempt >= 24){
+    restoreReelSnap();
+    return;
+  }
+  snapRestoreTimer = setTimeout(()=>restoreReelSnapAtStart(attempt + 1), 80);
+}
+
+function rewindTape(event){
+  event?.preventDefault();
+  event?.currentTarget?.blur();
+  if(document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  const source = scrollSource();
+  clearTimeout(snapRestoreTimer);
+  if(source === reel){
+    reel.style.scrollSnapType = "none";
+    reel.scrollTo({top:0,behavior:"smooth"});
+    snapRestoreTimer = setTimeout(restoreReelSnapAtStart, 80);
+    return;
+  }
+  source.scrollTo({top:0,behavior:"smooth"});
+}
+
+function resetTapePosition(){
+  clearTimeout(snapRestoreTimer);
+  setSnapViewportHeight(true);
+  if(reel){
+    reel.style.scrollSnapType = "";
+    reel.scrollTop = 0;
+  }
+  scrollTo(0,0);
+  lastBest = null;
+  requestAnimationFrame(frame);
+}
 
 function frame(){
-  const sc = window.scrollY, max = document.body.scrollHeight - innerHeight;
+  const {sc, max, vh} = scrollMetrics();
   progress.style.width = (max>0 ? sc/max*100 : 0) + "%";
-  const vc = innerHeight/2;
+  const vc = vh/2;
   let best=null, bd=Infinity;
   for(const s of sections){
     const r = s.getBoundingClientRect();
     const d = Math.abs(r.top + r.height/2 - vc);
     if(d<bd){ bd=d; best=s; }
     const num = s.querySelector(".num");
-    if(num){ const p=(r.top+r.height/2-vc)/innerHeight; num.style.transform=`translateY(calc(-50% + ${(p*-40).toFixed(1)}px))`; }
+    if(num){ const p=(r.top+r.height/2-vc)/vh; num.style.transform=`translateY(calc(-50% + ${(p*-40).toFixed(1)}px))`; }
   }
   if(best && best !== lastBest){
     lastBest = best;
@@ -305,8 +394,15 @@ function frame(){
   }
   ticking = false;
 }
-addEventListener("scroll", ()=>{ if(!ticking){ ticking=true; requestAnimationFrame(frame); } }, {passive:true});
-addEventListener("resize", ()=>requestAnimationFrame(frame));
+const requestFrame = ()=>{ if(!ticking){ ticking=true; requestAnimationFrame(frame); } };
+addEventListener("scroll", requestFrame, {passive:true});
+reel?.addEventListener("scroll", requestFrame, {passive:true});
+addEventListener("resize", ()=>{
+  setSnapViewportHeight();
+  requestAnimationFrame(frame);
+});
+addEventListener("pageshow", resetTapePosition);
+resetTapePosition();
 frame();
 
 /* timecode burn-in */
@@ -351,7 +447,7 @@ else{
         zeroFinished = true;
         leader.classList.remove("cal");
         sweep.style.transform = "rotate(360deg)";
-        lnum.classList.add("vanish");
+        leader.classList.add("countdown-done");
         leaderTimer = setTimeout(end, LEADER_ZERO_NUMBER_FADE_MS);
       }
       return;
